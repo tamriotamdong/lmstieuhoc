@@ -1,0 +1,8 @@
+{
+  "name": "15.09_GA2018_Kho Học liệu Tiểu học",
+  "description": "Website Học tập Trực tuyến  Tiểu học với giao diện Gamification hiện đại, thân thiện, tương tự Duolingo kids",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

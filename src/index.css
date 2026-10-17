@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+html {
+  font-size: 19px !important;
+}
+
+@theme {
+  --font-sans: "Times New Roman", Times, serif;
+  --font-title: "Times New Roman", Times, serif;
+  --font-btn: "Times New Roman", Times, serif;
+
+  --color-primary-brand: #2454A6;
+  --color-secondary-brand: #3B82F6;
+  --color-success-brand: #5ED68A;
+  --color-warning-brand: #FFD84D;
+  --color-danger-brand: #FF6B6B;
+  --color-bg-brand: #F3F6FD;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-bg-brand);
+  color: #1e293b;
+  overflow-x: hidden;
+}
+
+input, select, textarea, option, label {
+  font-family: var(--font-sans);
+}
+
+h1, h2, h3, h4, h5, h6, .brand-title {
+  font-family: var(--font-title);
+}
+
+button, .brand-btn {
+  font-family: var(--font-btn);
+}
+
+/* Custom styles for matching KidEnglish, Duolingo Kids vibe */
+.card-pastel-pink {
+  background-color: #FFF0F2;
+  border: 3px solid #FFD3D9;
+}
+.card-pastel-pink:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(255, 107, 107, 0.15);
+}
+
+.card-pastel-blue {
+  background-color: #EBF3FF;
+  border: 3px solid #C7DFFF;
+}
+.card-pastel-blue:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(59, 130, 246, 0.15);
+}
+
+.card-pastel-yellow {
+  background-color: #FFFDE8;
+  border: 3px solid #FFF5B8;
+}
+.card-pastel-yellow:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(255, 216, 77, 0.2);
+}
+
+.card-pastel-green {
+  background-color: #EEFBF3;
+  border: 3px solid #D1F5DF;
+}
+.card-pastel-green:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(94, 214, 138, 0.15);
+}
+
+.card-pastel-purple {
+  background-color: #F7EDFF;
+  border: 3px solid #EAD1FF;
+}
+.card-pastel-purple:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(168, 85, 247, 0.15);
+}
+
+.card-pastel-orange {
+  background-color: #FFF5EC;
+  border: 3px solid #FFE0C5;
+}
+.card-pastel-orange:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(249, 115, 22, 0.15);
+}
+
+.card-pastel-red {
+  background-color: #FFF2F2;
+  border: 3px solid #FFD6D6;
+}
+.card-pastel-red:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(239, 68, 68, 0.15);
+}
+
+/* Animations and helper classes */
+@keyframes pulseGlow {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 5px rgba(255, 216, 77, 0.5)); }
+  50% { transform: scale(1.05); filter: drop-shadow(0 0 15px rgba(255, 216, 77, 0.8)); }
+}
+
+.pulsate-glow {
+  animation: pulseGlow 2s infinite ease-in-out;
+}
