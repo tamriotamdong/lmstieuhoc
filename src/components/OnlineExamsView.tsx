@@ -102,6 +102,8 @@ export default function OnlineExamsView({ role = 'teacher', currUser, directTake
   const [calculatedScore, setCalculatedScore] = useState(0);
   const [isReviewMode, setIsReviewMode] = useState(false);
   const [showSubmitConfirmModal, setShowSubmitConfirmModal] = useState(false);
+  const [currentExamQuestionIndex, setCurrentExamQuestionIndex] = useState(0);
+  const [showPracticalStep, setShowPracticalStep] = useState(false);
 
   // Premium Sharing and Preview States
   const [lastSavedReportId, setLastSavedReportId] = useState<string | null>(null);
@@ -839,6 +841,8 @@ export default function OnlineExamsView({ role = 'teacher', currUser, directTake
       return;
     }
     setIsExamConfigPhase(false);
+    setCurrentExamQuestionIndex(0);
+    setShowPracticalStep(false);
     setTimeLeft((activeTakeExam.timeLimit || 45) * 60);
     setTimerActive(true);
     playKeng();
@@ -990,14 +994,38 @@ export default function OnlineExamsView({ role = 'teacher', currUser, directTake
         const coords = studentAnsStr.split(',').map(num => parseFloat(num.trim()));
         const clickX = coords[0];
         const clickY = coords[1];
-        const targetX = q.hotspotRect?.x || 50;
-        const targetY = q.hotspotRect?.y || 50;
-        const radius = q.hotspotRect?.radius || 30;
 
         if (!isNaN(clickX) && !isNaN(clickY)) {
-          const distance = Math.sqrt(Math.pow(clickX - targetX, 2) + Math.pow(clickY - targetY, 2));
-          // Tolerance is proportional to the custom image bounds, we'll accept clicks within ~10% visual offset
-          if (distance <= 10) {
+          let isCorrect = false;
+          // Check bounding box: q.hotspotBox or 4-number q.correctAnswer (x,y,w,h in %)
+          let box = q.hotspotBox;
+          if (!box && q.correctAnswer) {
+            const parts = q.correctAnswer.split(',').map((p: string) => parseFloat(p.trim()));
+            if (parts.length >= 4 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2]) && !isNaN(parts[3])) {
+              box = { x: parts[0], y: parts[1], width: parts[2], height: parts[3] };
+            }
+          }
+
+          if (box && box.width !== undefined && box.height !== undefined) {
+            const minX = Math.min(box.x, box.x + box.width);
+            const maxX = Math.max(box.x, box.x + box.width);
+            const minY = Math.min(box.y, box.y + box.height);
+            const maxY = Math.max(box.y, box.y + box.height);
+            // Full points if student clicked anywhere within the bounding box
+            if (clickX >= minX && clickX <= maxX && clickY >= minY && clickY <= maxY) {
+              isCorrect = true;
+            }
+          } else {
+            // Fallback for single center point
+            const targetX = q.hotspotRect?.x ?? (q.correctAnswer ? parseFloat(q.correctAnswer.split(',')[0]) : 50);
+            const targetY = q.hotspotRect?.y ?? (q.correctAnswer ? parseFloat(q.correctAnswer.split(',')[1]) : 50);
+            const distance = Math.sqrt(Math.pow(clickX - targetX, 2) + Math.pow(clickY - targetY, 2));
+            if (distance <= (q.hotspotRadius || 12)) {
+              isCorrect = true;
+            }
+          }
+
+          if (isCorrect) {
             correctPointsSum += q.points !== undefined ? Number(q.points) : (totalMaxScore / totalQuestions);
           }
         }
@@ -3429,21 +3457,53 @@ export default function OnlineExamsView({ role = 'teacher', currUser, directTake
             ) : (
               
               /* TESTING SESSION ACTIVE ENVIRONMENT */
-              <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
+              <div className="flex-1 overflow-hidden flex flex-col md:flex-row font-['Times_New_Roman',_Times,_serif] text-[13pt]" style={{ fontFamily: "'Times New Roman', Times, serif" }}>
                 
                 {/* Questions content scroll column */}
-                <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 scrollbar-thin select-text">
+                <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 scrollbar-thin select-text text-[13pt]">
                   
                   {/* PHẦN I: TRẮC NGHIỆM BANNER */}
-                  <div className="bg-blue-50 border border-blue-200/80 p-5 rounded-[22px] text-left">
-                    <span className="bg-blue-600 text-white text-[10px] uppercase font-black px-2.5 py-0.5 rounded-full">
-                      Phần I: Trắc nghiệm
-                    </span>
-                    <h3 className="text-sm font-black text-blue-900 mt-1 uppercase">📝 Các câu hỏi trắc nghiệm</h3>
-                  </div>
+                  {!showPracticalStep && (
+                    <div className="bg-blue-50 border border-blue-200/80 p-5 rounded-[22px] text-left flex items-center justify-between">
+                      <div>
+                        <span className="bg-blue-600 text-white text-[10px] uppercase font-black px-2.5 py-0.5 rounded-full">
+                          Phần I: Trắc nghiệm
+                        </span>
+                        <h3 className="text-sm font-black text-blue-900 mt-1 uppercase">📝 Các câu hỏi trắc nghiệm</h3>
+                      </div>
+                      <span className="text-xs font-black text-blue-800 bg-blue-100/70 border border-blue-200 px-3 py-1 rounded-xl font-mono">
+                        Câu {Math.min(currentExamQuestionIndex + 1, (activeTakeExam.questions || []).length || 1)} / {(activeTakeExam.questions || []).length}
+                      </span>
+                    </div>
+                  )}
 
-                  {activeTakeExam.questions?.map((q: any, qIdx: number) => {
+                  {!showPracticalStep && (() => {
+                    const questions = activeTakeExam.questions || [];
+                    if (questions.length === 0) {
+                      return (
+                        <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center space-y-4">
+                          <p className="text-slate-500 font-bold text-sm">Đề thi này không có câu hỏi trắc nghiệm.</p>
+                          {activeTakeExam.isPracticalEnabled && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowPracticalStep(true);
+                                playTing();
+                              }}
+                              className="px-6 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black cursor-pointer shadow-md"
+                            >
+                              Chuyển sang: Phần II. Thực hành ➡️
+                            </button>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    const safeIdx = Math.min(Math.max(0, currentExamQuestionIndex), questions.length - 1);
+                    const q = questions[safeIdx];
+                    const qIdx = safeIdx;
                     const isSelected = studentAnswers[q.id] !== undefined;
+
                     return (
                       <div 
                         key={q.id}
@@ -4056,31 +4116,58 @@ export default function OnlineExamsView({ role = 'teacher', currUser, directTake
                                 })()}
 
                                 {/* Render correct answer hotspot in review mode */}
-                                {isReviewMode && q.hotspotRect && (
-                                  <div 
-                                    className="absolute rounded-full border-2 border-green-500 bg-green-500/20 flex items-center justify-center shadow-lg"
-                                    style={{
-                                      left: `${q.hotspotRect.x}%`,
-                                      top: `${q.hotspotRect.y}%`,
-                                      width: `${q.hotspotRect.radius}px`,
-                                      height: `${q.hotspotRect.radius}px`,
-                                      transform: 'translate(-50%, -50%)'
-                                    }}
-                                    title="Đáp án đúng ở đây"
-                                  >
-                                    <span className="text-[10px] bg-green-600 text-white font-extrabold px-1 rounded shadow-xs select-none">Mục tiêu</span>
-                                  </div>
-                                )}
+                                {isReviewMode && (() => {
+                                  let box = q.hotspotBox;
+                                  if (!box && q.correctAnswer) {
+                                    const parts = q.correctAnswer.split(',').map((p: string) => parseFloat(p.trim()));
+                                    if (parts.length >= 4 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2]) && !isNaN(parts[3])) {
+                                      box = { x: parts[0], y: parts[1], width: parts[2], height: parts[3] };
+                                    }
+                                  }
+
+                                  if (box && box.width !== undefined && box.height !== undefined) {
+                                    return (
+                                      <div 
+                                        className="absolute border-2 border-emerald-500 bg-emerald-500/25 rounded-lg flex items-start justify-end p-1 shadow-lg pointer-events-none"
+                                        style={{
+                                          left: `${box.x}%`,
+                                          top: `${box.y}%`,
+                                          width: `${box.width}%`,
+                                          height: `${box.height}%`
+                                        }}
+                                        title="Vùng đáp án đúng"
+                                      >
+                                        <span className="text-[9px] bg-emerald-700 text-white font-extrabold px-1 rounded shadow-xs select-none">
+                                          ✓ Vùng đúng
+                                        </span>
+                                      </div>
+                                    );
+                                  }
+
+                                  if (q.hotspotRect) {
+                                    return (
+                                      <div 
+                                        className="absolute rounded-full border-2 border-green-500 bg-green-500/20 flex items-center justify-center shadow-lg"
+                                        style={{
+                                          left: `${q.hotspotRect.x}%`,
+                                          top: `${q.hotspotRect.y}%`,
+                                          width: `${q.hotspotRect.radius}px`,
+                                          height: `${q.hotspotRect.radius}px`,
+                                          transform: 'translate(-50%, -50%)'
+                                        }}
+                                        title="Đáp án đúng ở đây"
+                                      >
+                                        <span className="text-[10px] bg-green-600 text-white font-extrabold px-1 rounded shadow-xs select-none">Mục tiêu</span>
+                                      </div>
+                                    );
+                                  }
+
+                                  return null;
+                                })()}
                               </div>
                             </div>
 
-                            {isReviewMode && (
-                              <div className="text-center text-xs mt-2">
-                                <span className="bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl text-slate-700 font-extrabold">
-                                  💡 Tọa độ mục tiêu: X: {q.hotspotRect?.x || 50}%, Y: {q.hotspotRect?.y || 50}% (Bán kính: {q.hotspotRect?.radius || 30}px)
-                                </span>
-                              </div>
-                            )}
+                            {/* Coordinates hidden from student view as requested */}
                           </div>
                         )}
 
@@ -4100,36 +4187,114 @@ export default function OnlineExamsView({ role = 'teacher', currUser, directTake
 
                         {/* Display Pedagogical answer guides after student nộp bài */}
                         {(showResultOverlay || isReviewMode) && (
-                          <div className="mt-4 p-4 rounded-xl border text-xs leading-relaxed transition-all space-y-2 select-text bg-amber-50/50 border-amber-200">
+                          <div className="mt-4 p-4 rounded-xl border text-[13pt] leading-relaxed transition-all space-y-2 select-text bg-amber-50/50 border-amber-200">
                             <div className="flex items-center gap-1">
                               <span className="text-md">💡</span>
                               <span className="font-extrabold text-amber-850 uppercase">Đáp án chuẩn & Hướng dẫn:</span>
                             </div>
-                            {q.type !== 'essay' && q.type !== 'short_answer' && q.type !== 'essay_short_answer' && (
-                              <p className="font-bold text-indigo-950">Đáp án đúng: <span className="bg-white px-2 py-0.5 border rounded uppercase font-mono tracking-wider">{q.correctAnswer}</span></p>
+                            {(q.type === 'hotspot_image' || q.gameType === 'hotspot_image') ? (
+                              <p className="font-bold text-indigo-950">
+                                Đáp án đúng. <span className="font-semibold text-gray-700">{q.answerGuide && !q.answerGuide.includes("Vùng tọa độ") ? q.answerGuide : "Vị trí bàn phím nằm ở nửa dưới bức ảnh."}</span>
+                              </p>
+                            ) : (
+                              <>
+                                {q.type !== 'essay' && q.type !== 'short_answer' && q.type !== 'essay_short_answer' && (
+                                  <p className="font-bold text-indigo-950">Đáp án đúng: <span className="bg-white px-2 py-0.5 border rounded uppercase font-mono tracking-wider">{q.correctAnswer}</span></p>
+                                )}
+                                <p className="font-semibold text-gray-600">{q.answerGuide || "Đáp án chuẩn xác theo chương trình học."}</p>
+                              </>
                             )}
-                            <p className="font-semibold text-gray-600">{q.answerGuide || "Đáp án chuẩn xác theo chương trình học."}</p>
                           </div>
                         )}
 
+                        {/* Navigation controls at bottom of single question */}
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-200">
+                          <button
+                            type="button"
+                            disabled={safeIdx === 0}
+                            onClick={() => {
+                              setCurrentExamQuestionIndex(prev => Math.max(0, prev - 1));
+                              playTing();
+                            }}
+                            className={`px-4 py-2.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition ${
+                              safeIdx === 0
+                                ? 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-50'
+                                : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer shadow-3xs'
+                            }`}
+                          >
+                            ⬅️ Câu trước đó
+                          </button>
+
+                          <span className="text-xs font-black text-indigo-900 bg-indigo-50 border border-indigo-200 px-3.5 py-1.5 rounded-xl font-mono shadow-3xs">
+                            Câu {safeIdx + 1} / {questions.length}
+                          </span>
+
+                          {safeIdx < questions.length - 1 ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCurrentExamQuestionIndex(prev => Math.min(questions.length - 1, prev + 1));
+                                playTing();
+                              }}
+                              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 transition shadow-sm cursor-pointer"
+                            >
+                              Câu tiếp theo ➡️
+                            </button>
+                          ) : activeTakeExam.isPracticalEnabled ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowPracticalStep(true);
+                                playTing();
+                              }}
+                              className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 transition shadow-md cursor-pointer animate-pulse"
+                            >
+                              Tiếp theo: Phần II. Thực hành ➡️
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setShowSubmitConfirmModal(true)}
+                              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 transition shadow-md cursor-pointer"
+                            >
+                              🖲️ Nộp bài thi
+                            </button>
+                          )}
+                        </div>
+
                       </div>
                     );
-                  })}
+                  })()}
 
                   {/* PHẦN THỰC HÀNH (CÂU HỎI THỰC HÀNH VÀ ĐÍNH KÈM TỆP TIN BÀI LÀM) */}
-                   {activeTakeExam.isPracticalEnabled === true && (
-                     <div className="bg-slate-50 border border-slate-200 rounded-[28px] p-6 space-y-6">
-                       <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-                         <div>
-                           <span className="bg-amber-100 text-amber-800 text-[10px] uppercase font-black px-2.5 py-0.5 rounded-full border border-amber-200">
-                             Phần II. Thực hành
-                           </span>
-                           <h3 className="text-md font-black text-slate-800 mt-1 uppercase">🛠️ Các câu hỏi thực hành máy tính</h3>
-                         </div>
-                         <span className="text-[10.5px] font-black text-rose-600 bg-rose-50 border border-rose-100 px-2.5 py-0.5 rounded-lg flex items-center gap-1 shadow-3xs">
-                           🔒 Phần II. Thực hành do giáo viên chấm bài
-                         </span>
-                       </div>
+                  {showPracticalStep && activeTakeExam.isPracticalEnabled === true && (
+                    <div className="bg-slate-50 border border-slate-200 rounded-[28px] p-6 space-y-6">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 pb-3 gap-2">
+                        <div>
+                          <span className="bg-amber-100 text-amber-800 text-[10px] uppercase font-black px-2.5 py-0.5 rounded-full border border-amber-200">
+                            Phần II. Thực hành
+                          </span>
+                          <h3 className="text-md font-black text-slate-800 mt-1 uppercase">🛠️ Các câu hỏi thực hành máy tính</h3>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {(activeTakeExam.questions || []).length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowPracticalStep(false);
+                                setCurrentExamQuestionIndex((activeTakeExam.questions || []).length - 1);
+                                playTing();
+                              }}
+                              className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-extrabold rounded-xl transition cursor-pointer shadow-3xs flex items-center gap-1"
+                            >
+                              ⬅️ Quay lại Trắc nghiệm
+                            </button>
+                          )}
+                          <span className="text-[10.5px] font-black text-rose-600 bg-rose-50 border border-rose-100 px-2.5 py-0.5 rounded-lg flex items-center gap-1 shadow-3xs">
+                            🔒 Phần II. Thực hành do giáo viên chấm bài
+                          </span>
+                        </div>
+                      </div>
  
                        <p className="text-xs text-blue-600 font-bold leading-relaxed">
                          Em hãy thực hiện các thao tác này trực tiếp trên máy tính của mình. Sau khi hoàn thành, em có thể thông báo cho Thầy/Cô hoặc đính kèm tệp tin bài tập thực hành (ảnh chụp bài làm hoặc tệp PowerPoint) bên dưới để Thầy/Cô trực tiếp kiểm tra và chấm điểm nhé!
@@ -4323,8 +4488,34 @@ export default function OnlineExamsView({ role = 'teacher', currUser, directTake
                           </div>
                         )}
                       </div>
-                    </div>
-                  )}
+
+                        {/* Navigation at bottom of practical section */}
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-200">
+                          {(activeTakeExam.questions || []).length > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowPracticalStep(false);
+                                setCurrentExamQuestionIndex((activeTakeExam.questions || []).length - 1);
+                                playTing();
+                              }}
+                              className="px-4 py-2.5 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-xl text-xs font-black flex items-center gap-1.5 transition cursor-pointer shadow-3xs"
+                            >
+                              ⬅️ Quay lại câu hỏi trắc nghiệm
+                            </button>
+                          ) : <div />}
+                          {!showResultOverlay && !isReviewMode && (
+                            <button
+                              type="button"
+                              onClick={() => setShowSubmitConfirmModal(true)}
+                              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl cursor-pointer transition shadow-md"
+                            >
+                              🖲️ Nộp bài & Chấm điểm
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Review mode display of what was submitted */}
                     {(isReviewMode || showResultOverlay) && (practicalImage || practicalLink || practicalFile) && (
@@ -4432,25 +4623,60 @@ export default function OnlineExamsView({ role = 'teacher', currUser, directTake
 
                     {/* Numbered Jump list grids */}
                     <div className="space-y-2 bg-white/60 p-4 rounded-2xl border border-slate-200">
-                      <div className="text-[10px] font-black uppercase text-slate-400">Số câu hỏi ({activeTakeExam.questions?.length})</div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase text-slate-400">
+                          Số câu hỏi ({activeTakeExam.questions?.length})
+                        </span>
+                        {!showPracticalStep && (
+                          <span className="text-[10px] font-bold text-blue-600">
+                            Đang ở: Câu {currentExamQuestionIndex + 1}
+                          </span>
+                        )}
+                      </div>
                       <div className="grid grid-cols-4 gap-2">
                         {activeTakeExam.questions?.map((q: any, idx: number) => {
                           const isAnswered = studentAnswers[q.id] !== undefined && studentAnswers[q.id] !== '';
+                          const isCurrent = !showPracticalStep && currentExamQuestionIndex === idx;
                           return (
-                            <a
+                            <button
                               key={q.id}
-                              href={`#question-card-${q.id}`}
-                              className={`p-2 rounded-xl text-center text-xs font-black border transition-all ${
-                                isAnswered
+                              type="button"
+                              onClick={() => {
+                                setShowPracticalStep(false);
+                                setCurrentExamQuestionIndex(idx);
+                                playTing();
+                              }}
+                              className={`p-2 rounded-xl text-center text-xs font-black border transition-all cursor-pointer ${
+                                isCurrent
+                                  ? 'ring-2 ring-indigo-500 bg-indigo-600 text-white border-indigo-700 shadow-md font-extrabold scale-105'
+                                  : isAnswered
                                   ? 'bg-blue-600 text-white border-blue-700 shadow-3xs'
                                   : 'bg-white border-slate-300 text-slate-650 hover:bg-slate-50'
                               }`}
                             >
                               {idx + 1}
-                            </a>
+                            </button>
                           );
                         })}
                       </div>
+
+                      {activeTakeExam.isPracticalEnabled && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowPracticalStep(true);
+                            playTing();
+                          }}
+                          className={`w-full mt-2.5 py-2 px-3 rounded-xl text-center text-xs font-black border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                            showPracticalStep
+                              ? 'ring-2 ring-amber-500 bg-amber-600 text-white border-amber-700 shadow-md font-extrabold scale-102'
+                              : 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100 shadow-3xs'
+                          }`}
+                        >
+                          <span>🛠️</span>
+                          <span>Phần II: Thực hành</span>
+                        </button>
+                      )}
                     </div>
 
                   </div>
@@ -4467,30 +4693,32 @@ export default function OnlineExamsView({ role = 'teacher', currUser, directTake
       {/* 4. OVERLAY DIALOG FOR EXAM RESULTS AND SCORE DISPLAY */}
       {showResultOverlay && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-55 flex items-center justify-center p-4">
-          <div className="bg-white rounded-[32px] overflow-hidden shadow-2xl p-8 max-w-md w-full text-center space-y-6 animate-scale-up border-4 border-emerald-500" style={{ fontFamily: 'Times New Roman, Times, serif' }}>
+          <div className="bg-white rounded-[32px] overflow-hidden shadow-2xl p-6 sm:p-8 w-[450px] max-w-[450px] text-center space-y-5 animate-scale-up border-4 border-emerald-500 font-['Times_New_Roman',_Times,_serif] text-[13pt]" style={{ width: '450px', maxWidth: '450px', fontFamily: "'Times New Roman', Times, serif" }}>
             <div className="text-6xl animate-bounce">🏆⭐</div>
             
             <div className="space-y-1">
-              <h3 className="text-xl font-bold text-indigo-950 uppercase">Kết Quả Nộp Bài Trực Tuyến</h3>
+              <h3 className="text-xl font-bold text-indigo-950 uppercase font-['Times_New_Roman',_Times,_serif]">Kết Quả Nộp Bài Trực Tuyến</h3>
               <p className="text-xs text-red-600 font-bold">Hệ thống đã ghi nhận điểm thành công!</p>
             </div>
 
-            <div className="bg-emerald-50 p-6 rounded-3xl border border-emerald-200 text-center relative overflow-hidden">
+            <div className="bg-emerald-50 p-6 rounded-3xl border border-emerald-200 text-center relative overflow-hidden font-['Times_New_Roman',_Times,_serif]">
               <div className="absolute top-0 left-0 w-full h-full bg-grid-pattern opacity-10 pointer-events-none" />
-              <div className="text-[12px] text-emerald-600 uppercase font-black tracking-widest mb-1">Điểm số đạt được</div>
-              <div className="text-6xl font-black text-emerald-600 leading-none">
+              <div className="text-[13pt] uppercase font-bold tracking-wide mb-1 text-slate-800 font-['Times_New_Roman',_Times,_serif]">
+                <span className="text-red-600 font-bold">Số điểm</span> đạt được
+              </div>
+              <div className="text-6xl font-black text-red-600 leading-none my-1 font-['Times_New_Roman',_Times,_serif]">
                 {calculatedScore}
               </div>
-              <span className="text-xs font-bold text-emerald-500">Thang điểm: {activeTakeExam?.matrixTotalScore || 10}đ</span>
+              <span className="text-xs font-bold text-emerald-600">Thang điểm: {activeTakeExam?.matrixTotalScore || 10}đ</span>
               {activeTakeExam?.isPracticalEnabled && (
-                <div className="mt-2 text-xs text-blue-600 font-extrabold block">
-                  Đây chỉ là điểm của phần trắc nghiệm. Em hãy làm bài thực hành để đạt được điểm tốt nhất nhé. Cố lên nào!
+                <div className="mt-3 text-[13pt] text-slate-700 leading-normal block font-['Times_New_Roman',_Times,_serif]">
+                  Đây chỉ là điểm của phần <span className="text-red-600 font-bold">trắc nghiệm</span>. Em hãy làm bài <span className="text-red-600 font-bold">thực hành</span> để đạt được điểm tốt nhất nhé. Cố lên nào!
                 </div>
               )}
             </div>
 
             {/* BÁO ĐIỂM & ĐÁNH GIÁ SƯ PHẠM CHUẨN THÔNG TƯ 27 (TT27/BGDĐT) */}
-            <div className="p-4 rounded-2xl border text-left space-y-2 bg-indigo-50/20 border-indigo-200 text-xs">
+            <div className="p-4 rounded-2xl border text-left space-y-2 bg-indigo-50/20 border-indigo-200 text-xs font-['Times_New_Roman',_Times,_serif]">
               <div className="flex items-center justify-between font-bold uppercase text-[10px]">
                 <span className="text-indigo-900 font-bold">Đánh giá chuẩn TT27:</span>
                 <span className={`px-2.5 py-0.5 rounded-full border ${
@@ -4519,28 +4747,63 @@ export default function OnlineExamsView({ role = 'teacher', currUser, directTake
               </p>
             </div>
 
-            <div className="text-[13px] font-bold text-blue-600 leading-relaxed bg-slate-50 p-4 rounded-xl border text-left">
-              🎉 Xin chúc mừng <strong>{studentName}</strong> đã hoàn thành bài thi môn <strong>{activeTakeExam?.subject}</strong> Lớp <strong>{activeTakeExam?.grade}</strong>! Hệ thống đã ghi nhận kết quả thi trực tuyến của em.
+            <div className="text-[13pt] text-slate-800 leading-relaxed bg-slate-50 p-4 rounded-xl border text-left font-['Times_New_Roman',_Times,_serif]">
+              🎉 Xin chúc mừng <span className="text-red-600 font-bold">{studentName || 'Ngọc Hạnh'}</span> đã hoàn thành bài thi môn <span className="text-red-600 font-bold">{activeTakeExam?.subject || 'Tin học'} Lớp {activeTakeExam?.grade || '3'}</span>! Hệ thống đã ghi nhận kết quả thi trực tuyến của em.
             </div>
 
             {/* PHẦN THƯỞNG CHO HỌC SINH ĐẠT ĐIỂM CAO */}
-            {activeTakeExam?.rewardEnabled && calculatedScore >= (activeTakeExam?.rewardMinScore ?? 8) && activeTakeExam?.rewardGameLink && (
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-center space-y-2 shadow-md">
-                <div className="font-extrabold text-sm uppercase tracking-wider flex items-center justify-center gap-1.5">
-                  🎉 PHẦN THƯỞNG CHO EM 🎁
+            {activeTakeExam?.rewardEnabled && calculatedScore >= (activeTakeExam?.rewardMinScore ?? 8) && (activeTakeExam?.rewardGameLink || activeTakeExam?.rewardImageUrl) && (
+              <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-center space-y-3 shadow-lg border border-amber-300">
+                <div className="font-extrabold text-sm uppercase tracking-wider flex items-center justify-center gap-1.5 font-['Times_New_Roman',_Times,_serif]">
+                  🎉 PHẦN THƯỞNG KÍCH THÍCH HỌC TẬP 🎁
                 </div>
-                <p className="text-[11px] font-medium opacity-95 leading-relaxed">
-                  Em đã làm bài trên {activeTakeExam?.rewardMinScore} điểm! Hãy nhấp vào nút bên dưới để nhận phần quà của mình.
+                <p className="font-['Times_New_Roman',_Times,_serif] text-[12pt] font-medium opacity-95 leading-relaxed text-white">
+                  Em đã hoàn thành bài thi xuất sắc đạt trên {activeTakeExam?.rewardMinScore || 2} điểm! Nhận phần thưởng của em dưới đây nhé:
                 </p>
-                <a
-                  href={activeTakeExam?.rewardGameLink}
-                  target="_blank"
-                  referrerPolicy="no-referrer"
-                  rel="noopener noreferrer"
-                  className="inline-block px-5 py-2 bg-white text-orange-600 hover:bg-orange-50 font-black text-xs rounded-xl shadow-sm transition active:scale-95 uppercase tracking-wide cursor-pointer"
-                >
-                  🎮 Chơi Trò Chơi Ngay! 🚀
-                </a>
+
+                {/* Reward Image with link */}
+                {activeTakeExam?.rewardImageUrl && (
+                  <div className="flex justify-center my-2">
+                    {activeTakeExam?.rewardGameLink ? (
+                      <a
+                        href={activeTakeExam.rewardGameLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group relative block overflow-hidden rounded-2xl border-4 border-white shadow-xl hover:scale-102 transition-transform cursor-pointer"
+                        title="Nhấn vào hình ảnh để mở phần thưởng!"
+                      >
+                        <img
+                          src={activeTakeExam.rewardImageUrl}
+                          alt="Hình ảnh phần thưởng"
+                          className="max-h-56 max-w-full object-contain rounded-xl bg-white/10"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-xs font-black text-white transition-opacity">
+                          🔗 Nhấn để mở phần thưởng
+                        </div>
+                      </a>
+                    ) : (
+                      <img
+                        src={activeTakeExam.rewardImageUrl}
+                        alt="Hình ảnh phần thưởng"
+                        className="max-h-56 max-w-full object-contain rounded-2xl border-4 border-white shadow-xl bg-white/10"
+                      />
+                    )}
+                  </div>
+                )}
+
+                {activeTakeExam?.rewardGameLink && (
+                  <div className="pt-1">
+                    <a
+                      href={activeTakeExam?.rewardGameLink}
+                      target="_blank"
+                      referrerPolicy="no-referrer"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-6 py-2.5 bg-white text-orange-600 hover:bg-orange-50 font-black text-xs rounded-xl shadow-md transition active:scale-95 uppercase tracking-wide cursor-pointer"
+                    >
+                      🎮 Mở Phần Thưởng / Trò Chơi Ngay! 🚀
+                    </a>
+                  </div>
+                )}
               </div>
             )}
 

@@ -505,16 +505,43 @@ export const boldTechAppsAndGames = (text: string): string => {
   // First convert markdown bold **...**
   res = res.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 
+  // Pre-clean: Fix connecting phrases like ""kết hợp phần mềm"" -> " kết hợp phần mềm "
+  res = res.replace(/["“”«»]{1,2}\s*(kết\s*hợp\s*phần\s*mềm|kết\s*hợp\s*ứng\s*dụng|kết\s*hợp|trên\s*phần\s*mềm|trên\s*ứng\s*dụng|trên|thông\s*qua\s*phần\s*mềm|thông\s*qua\s*ứng\s*dụng|thông\s*qua|sử\s*dụng\s*phần\s*mềm|sử\s*dụng|với\s*phần\s*mềm|với|cùng\s*phần\s*mềm|cùng|bằng\s*phần\s*mềm|bằng)\s*["“”«»]{1,2}/gi, ' $1 ');
+  res = res.replace(/(["“”«»])(kết\s*hợp|trên|thông\s*qua|sử\s*dụng|với|cùng|bằng|để|và)\b/gi, '$1 $2');
+  res = res.replace(/\b(phần\s*mềm|trò\s*chơi|ứng\s*dụng|website|trang\s*web)(["“”«»])/gi, '$1 $2');
+  res = res.replace(/(["“”«»])\s*(["“”«»])/g, '$1 $2');
+
+  // Pre-clean any duplicated double quotes: ""Wordwall"" -> "Wordwall", ""Hộp quà bí mật"" -> "Hộp quà bí mật"
+  res = res.replace(/["“”«»]{2,}/g, '"');
+  res = res.replace(/(?:&quot;){2,}/gi, '&quot;');
+  res = res.replace(/["“”«»]\s*["“”«»]/g, '"');
+
   const allItems = [...games, ...apps];
   allItems.sort((a, b) => b.length - a.length);
 
   allItems.forEach(item => {
     const escaped = item.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     // Normalize existing: <strong>"item"</strong> or <strong>item</strong> or "item" or bare item
-    res = res.replace(new RegExp(`<strong>\\s*(?:["“”']|&quot;)?\\s*(${escaped})\\s*(?:["“”']|&quot;)?\\s*<\\/strong>`, 'gi'), `<strong>"${item}"</strong>`);
-    res = res.replace(new RegExp(`(?<!<strong>)(?:["“”]|&quot;)\\s*(${escaped})\\s*(?:["“”]|&quot;)(?!<\\/strong>)`, 'gi'), `<strong>"${item}"</strong>`);
-    res = res.replace(new RegExp(`(?<!(?:<strong>\\s*["“”]?|["“”]|&quot;))\\b(${escaped})\\b(?!(?:\\s*["“”]?<\\/strong>|["“”]|&quot;))`, 'gi'), `<strong>"${item}"</strong>`);
+    res = res.replace(new RegExp(`<strong>\\s*(?:["“”'«»]|&quot;)*\\s*(${escaped})\\s*(?:["“”'«»]|&quot;)*\\s*<\\/strong>`, 'gi'), `<strong>"${item}"</strong>`);
+    res = res.replace(new RegExp(`(?<!<strong>)(?:["“”«»]|&quot;)+\\s*(${escaped})\\s*(?:["“”«»]|&quot;)+(?!<\\/strong>)`, 'gi'), `<strong>"${item}"</strong>`);
+    res = res.replace(new RegExp(`(?<!(?:<strong>\\s*["“”«»]?|["“”«»]|&quot;))\\b(${escaped})\\b(?!(?:\\s*["“”«»]?<\\/strong>|["“”«»]|&quot;))`, 'gi'), `<strong>"${item}"</strong>`);
   });
+
+  // Post-clean: Ensure no double double-quotes remain anywhere:
+  // e.g. ""Hộp quà bí mật"" -> "Hộp quà bí mật", ""Kahoot"" -> "Kahoot"
+  // e.g. <strong>""...""</strong> -> <strong>"..."</strong>
+  res = res.replace(/["“”«»]{1,2}\s*(kết\s*hợp\s*phần\s*mềm|kết\s*hợp\s*ứng\s*dụng|kết\s*hợp|trên\s*phần\s*mềm|trên\s*ứng\s*dụng|trên|thông\s*qua\s*phần\s*mềm|thông\s*qua\s*ứng\s*dụng|thông\s*qua|sử\s*dụng\s*phần\s*mềm|sử\s*dụng|với\s*phần\s*mềm|với|cùng\s*phần\s*mềm|cùng|bằng\s*phần\s*mềm|bằng)\s*["“”«»]{1,2}/gi, ' $1 ');
+  res = res.replace(/(["“”«»])(kết\s*hợp|trên|thông\s*qua|sử\s*dụng|với|cùng|bằng|để|và)\b/gi, '$1 $2');
+  res = res.replace(/\b(phần\s*mềm|trò\s*chơi|ứng\s*dụng|website|trang\s*web)(["“”«»])/gi, '$1 $2');
+  res = res.replace(/(["“”«»])\s*(["“”«»])/g, '$1 $2');
+  res = res.replace(/["“”«»]{2,}/g, '"');
+  res = res.replace(/(?:&quot;){2,}/gi, '&quot;');
+  res = res.replace(/<strong>\s*["“”«»]{2,}/gi, '<strong>"');
+  res = res.replace(/["“”«»]{2,}\s*<\/strong>/gi, '"</strong>');
+  res = res.replace(/["“”«»]+\s*(<strong>\s*["“”«»]?[^<]+?["“”«»]?\s*<\/strong>)\s*["“”«»]+/gi, '$1');
+  res = res.replace(/""([^"\n\r]+)""/g, '"$1"');
+  res = res.replace(/““([^”\n\r]+)””/g, '"$1"');
+  res = res.replace(/””([^”\n\r]+)””/g, '"$1"');
 
   return res;
 };
@@ -628,6 +655,41 @@ export const fixLessonTitlePeriodSpacing = (htmlOrText: string): string => {
   res = res.replace(/Tranh\s*ảnh\s*(?:phóng\s*to\s*)?(?:các\s+)?Hình\s*([\d,\s\.\-–và]+)\s*SGK\s*Trang\s*\*,\s*([\d,\s\.\-–và]+)\s*(SGK\s*Trang\s*[\d,\s\.\-–và]+)/gi, 
     (_m, f1, f2, pages) => `Tranh ảnh Hình ${f1.trim().replace(/,\s*$/, "")}, ${f2.trim().replace(/^,\s*/, "")} ${pages.trim()}`
   );
+
+  // 8. Xử lý triệt để các lỗi ngoặc ghép và định dạng in đậm cho văn bản trong ngoặc kép "*"
+  res = res.replace(/["“”«»]{1,2}\s*(kết\s*hợp\s*phần\s*mềm|kết\s*hợp\s*ứng\s*dụng|kết\s*hợp|trên\s*phần\s*mềm|trên\s*ứng\s*dụng|trên|thông\s*qua\s*phần\s*mềm|thông\s*qua\s*ứng\s*dụng|thông\s*qua|sử\s*dụng\s*phần\s*mềm|sử\s*dụng|với\s*phần\s*mềm|với|cùng\s*phần\s*mềm|cùng|bằng\s*phần\s*mềm|bằng)\s*["“”«»]{1,2}/gi, ' $1 ');
+  res = res.replace(/(["“”«»])(kết\s*hợp|trên|thông\s*qua|sử\s*dụng|với|cùng|bằng|để|và)\b/gi, '$1 $2');
+  res = res.replace(/\b(phần\s*mềm|trò\s*chơi|ứng\s*dụng|website|trang\s*web)(["“”«»])/gi, '$1 $2');
+  res = res.replace(/(["“”«»])\s*(["“”«»])/g, '$1 $2');
+  res = res.replace(/["“”«»]{2,}/g, '"');
+  res = res.replace(/(?:&quot;){2,}/gi, '&quot;');
+  res = res.replace(/<strong>\s*["“”«»]{2,}/gi, '<strong>"');
+  res = res.replace(/["“”«»]{2,}\s*<\/strong>/gi, '"</strong>');
+  res = res.replace(/["“”«»]+\s*(<strong>\s*["“”«»]?[^<]+?["“”«»]?\s*<\/strong>)\s*["“”«»]+/gi, '$1');
+  res = res.replace(/""([^"\n\r]+)""/g, '"$1"');
+  res = res.replace(/““([^”\n\r]+)””/g, '"$1"');
+  res = res.replace(/””([^”\n\r]+)””/g, '"$1"');
+
+  // Xử lý an toàn trong text node (ngoài các thẻ và thuộc tính HTML):
+  res = res.replace(/(>|^)([^<]+)(<|$)/g, (_match, prefix, textNode, suffix) => {
+    let clean = textNode;
+    clean = clean.replace(/["“”]{2,}/g, '"');
+    clean = clean.replace(/""([^"\n\r]+)""/g, '"$1"');
+    clean = clean.replace(/““([^”\n\r]+)””/g, '"$1"');
+    clean = clean.replace(/””([^”\n\r]+)””/g, '"$1"');
+
+    // Chuyển mọi văn bản trong cặp ngoặc kép "..." hoặc “...” thành chữ đậm <strong>"..."</strong>
+    clean = clean.replace(/"([^"\n\r<]{1,200})"/g, '<strong>"$1"</strong>');
+    clean = clean.replace(/“([^”\n\r<]{1,200})”/g, '<strong>“$1”</strong>');
+
+    return `${prefix}${clean}${suffix}`;
+  });
+
+  // Dọn dẹp thẻ lồng nhau thừa do biến đổi
+  res = res.replace(/<strong>\s*<strong>/g, '<strong>');
+  res = res.replace(/<\/strong>\s*<\/strong>/g, '</strong>');
+  res = res.replace(/<strong>\s*""\s*<\/strong>/g, '');
+  res = res.replace(/<strong>\s*"\s*<\/strong>/g, '');
 
   return res;
 };
@@ -846,50 +908,49 @@ export const cleanSectionIIText = (
   const cleanSubject = subject.replace(/^Môn\s*học\s*:\s*/i, "").trim() || "Tin học";
   const cleanGradeStr = grade.replace(/^Lớp\s*/i, "").trim() || "3";
 
-  let lines = secIIText.split('\n');
-  let hasGv = false;
-  let hasHs = false;
+  const rawLines = secIIText.split('\n');
+  let headerLine = "## II. ĐỒ DÙNG DẠY HỌC";
+  const gvBuffer: string[] = [];
+  let currentTarget: 'none' | 'gv' | 'hs' = 'none';
 
-  // Filter out any standalone lines mentioning apps or games from Section II
-  lines = lines.filter(line => {
-    const l = line.toLowerCase().trim();
-    if (/^[\-\*\+]?\s*(?:ứng dụng|công nghệ số|trò chơi)\b/i.test(l)) return false;
-    if (/(?:kahoot|quizizz|padlet|canva|wordwall|geogebra|liveworksheets|nearpod|mentimeter|blooket|gimkit|baamboozle|quizlet)/i.test(l) && !l.includes("giáo viên")) return false;
-    if (/(?:ai nhanh hơn|rung chuông vàng|hộp quà bí mật|mảnh ghép kì diệu|mảnh ghép kỳ diệu|hộp quà bí ẩn|ô cửa bí mật|vòng quay may mắn|ai là triệu phú|ai là ai|thám tử mạng|mặt nạ cảm xúc)/i.test(l) && !l.includes("giáo viên")) return false;
-    return true;
-  });
+  for (const raw of rawLines) {
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
 
-  lines = lines.map(line => {
-    let trimmed = line.trim();
-    const lowercaseTrimmed = trimmed.toLowerCase();
-
-    if (lowercaseTrimmed.includes("giáo viên") && !lowercaseTrimmed.startsWith("ii.") && !lowercaseTrimmed.includes("đối với giáo viên và học sinh")) {
-      hasGv = true;
-      const gvIndex = lowercaseTrimmed.indexOf("giáo viên");
-      let rest = trimmed.substring(gvIndex + "giáo viên".length);
-      rest = rest.replace(/^[\s\:\*\-\+\=]+/g, '').trim();
-
-      const formatted = formatTeacherToolsString(rest, toolsList, cleanSubject, cleanGradeStr, isAiAutoTools);
-      return `- Giáo viên: ${formatted}.`;
+    if (/^#{1,6}\s*(?:II\.|ĐỒ DÙNG|THIẾT BỊ)/i.test(trimmed)) {
+      headerLine = trimmed.replace(/II\.\s*(?:THIẾT\s*BỊ|ĐỒ\s*DÙNG)\s*DẠY\s*HỌC(?:\s*VÀ\s*HỌC\s*LIỆU)?/i, 'II. ĐỒ DÙNG DẠY HỌC');
+      continue;
     }
 
-    if (lowercaseTrimmed.includes("học sinh") && !lowercaseTrimmed.startsWith("ii.") && !lowercaseTrimmed.includes("đối với giáo viên và học sinh")) {
-      hasHs = true;
-      return `- Học sinh: SGK ${cleanSubject} ${cleanGradeStr}, VBT ${cleanSubject} ${cleanGradeStr}, vở ghi, dụng cụ học tập.`;
+    const lower = trimmed.toLowerCase();
+    if (lower.includes("giáo viên") && !lower.includes("đối với giáo viên và học sinh")) {
+      currentTarget = 'gv';
+      const gvIdx = lower.indexOf("giáo viên");
+      const rest = trimmed.substring(gvIdx + "giáo viên".length).replace(/^[\s\:\*\-\+\=]+/g, '').trim();
+      if (rest) gvBuffer.push(rest);
+      continue;
     }
 
-    return line;
-  });
+    if (lower.includes("học sinh") && !lower.includes("đối với giáo viên và học sinh")) {
+      currentTarget = 'hs';
+      continue;
+    }
 
-  if (!hasGv) {
-    const formatted = formatTeacherToolsString("", toolsList, cleanSubject, cleanGradeStr, isAiAutoTools);
-    lines.push(`- Giáo viên: ${formatted}.`);
-  }
-  if (!hasHs) {
-    lines.push(`- Học sinh: SGK ${cleanSubject} ${cleanGradeStr}, VBT ${cleanSubject} ${cleanGradeStr}, vở ghi, dụng cụ học tập.`);
+    if (currentTarget === 'gv') {
+      // Exclude standalone game or tech app lines
+      if (/^[\-\*\+]?\s*(?:ứng dụng|công nghệ số|trò chơi)\b/i.test(lower)) continue;
+      if (/(?:kahoot|quizizz|padlet|canva|wordwall|geogebra|liveworksheets|nearpod|mentimeter|blooket|gimkit|baamboozle|quizlet)/i.test(lower)) continue;
+      if (/(?:ai nhanh hơn|rung chuông vàng|hộp quà bí mật|mảnh ghép kì diệu|mảnh ghép kỳ diệu|hộp quà bí ẩn|ô cửa bí mật|vòng quay may mắn|ai là triệu phú|ai là ai|thám tử mạng|mặt nạ cảm xúc)/i.test(lower)) continue;
+
+      const cleanItem = trimmed.replace(/^[#\s\-\*\+•\d\.\)]+/g, '').trim();
+      if (cleanItem) gvBuffer.push(cleanItem);
+    }
   }
 
-  return lines.join('\n');
+  const combinedGv = gvBuffer.join(', ');
+  const formattedTeacher = formatTeacherToolsString(combinedGv, toolsList, cleanSubject, cleanGradeStr, isAiAutoTools);
+
+  return `${headerLine}\n- Giáo viên: ${formattedTeacher}.\n- Học sinh: SGK ${cleanSubject} ${cleanGradeStr}, VBT ${cleanSubject} ${cleanGradeStr}, vở ghi, dụng cụ học tập.`;
 };
 
 export default function LessonPlanner() {
@@ -1906,10 +1967,25 @@ export default function LessonPlanner() {
         const cleanKw = kw.trim();
         if (!cleanKw || cleanKw.length < 2) return;
         const escaped = cleanKw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(`(?<!\\*\\*)\\b(${escaped})\\b(?!\\*\\*)`, 'gi');
-        cleanPlan = cleanPlan.replace(regex, '**$1**');
+        cleanPlan = cleanPlan.replace(new RegExp(`(?:["“”«»]*\\*\\*+["“”«»]*|["“”«»]+)\\s*(${escaped})\\s*(?:["“”«»]*\\*\\*+["“”«»]*|["“”«»]+)`, 'gi'), `**"${cleanKw}"**`);
+        cleanPlan = cleanPlan.replace(new RegExp(`(?<!(?:\\*\\*["“”«»]?|["“”«»]))\\b(${escaped})\\b(?!(?:["“”«»]?\\*\\*|["“”«»]))`, 'gi'), `**"${cleanKw}"**`);
       });
       cleanPlan = cleanPlan.replace(/\*{4,}/g, '**');
+
+      // Comprehensive collapse of duplicated double quotes and connector phrases (e.g. ""Hộp quà bí mật"" -> "Hộp quà bí mật", ""Kahoot"" -> "Kahoot")
+      cleanPlan = cleanPlan.replace(/["“”«»]{1,2}\s*(kết\s*hợp\s*phần\s*mềm|kết\s*hợp\s*ứng\s*dụng|kết\s*hợp|trên\s*phần\s*mềm|trên\s*ứng\s*dụng|trên|thông\s*qua\s*phần\s*mềm|thông\s*qua\s*ứng\s*dụng|thông\s*qua|sử\s*dụng\s*phần\s*mềm|sử\s*dụng|với\s*phần\s*mềm|với|cùng\s*phần\s*mềm|cùng|bằng\s*phần\s*mềm|bằng)\s*["“”«»]{1,2}/gi, ' $1 ');
+      cleanPlan = cleanPlan.replace(/(["“”«»])(kết\s*hợp|trên|thông\s*qua|sử\s*dụng|với|cùng|bằng|để|và)\b/gi, '$1 $2');
+      cleanPlan = cleanPlan.replace(/\b(phần\s*mềm|trò\s*chơi|ứng\s*dụng|website|trang\s*web)(["“”«»])/gi, '$1 $2');
+      cleanPlan = cleanPlan.replace(/(["“”«»])\s*(["“”«»])/g, '$1 $2');
+      cleanPlan = cleanPlan.replace(/["“”«»]{2,}/g, '"');
+      cleanPlan = cleanPlan.replace(/["“”«»]\s*["“”«»]/g, '"');
+      cleanPlan = cleanPlan.replace(/["“”«»]\s*(\*{2,})\s*["“”«»]/g, '$1"');
+      cleanPlan = cleanPlan.replace(/["“”«»]\s*(\*{2,})\s*([^"*]+?)\s*(\*{2,})\s*["“”«»]/g, '**"$2"**');
+      cleanPlan = cleanPlan.replace(/\*{2,}\s*["“”«»]{2,}\s*([^"*]+?)\s*["“”«»]{2,}\s*\*{2,}/g, '**"$1"**');
+      cleanPlan = cleanPlan.replace(/["“”«»]{2,}\s*\*{2,}\s*([^"*]+?)\s*\*{2,}\s*["“”«»]{2,}/g, '**"$1"**');
+      cleanPlan = cleanPlan.replace(/""([^"\n\r]+)""/g, '"$1"');
+      cleanPlan = cleanPlan.replace(/““([^”\n\r]+)””/g, '"$1"');
+      cleanPlan = cleanPlan.replace(/””([^”\n\r]+)””/g, '"$1"');
 
       // Ensure Section II teaching tools are formatted and include all selected tools in cleanPlan (strictly NO tech apps or games in Section II)
       cleanPlan = cleanPlan.replace(/(?:^|\n)(#{1,6}\s*II\.\s*(?:ĐỒ\s*DÙNG|THIẾT\s*BỊ)\s*DẠY\s*HỌC[\s\S]*?)(?=(?:^|\n)#{1,6}\s*III|\n---|\n===|$)/gi, (match) => {
@@ -2729,19 +2805,41 @@ export default function LessonPlanner() {
         trimmed = trimmed.replace(/^([#\s\*]*1\.\s*Năng lực đặc thù)(?:\s+môn(?:\s+[a-zA-ZÀ-ỹ\s]+)?)?:?/i, isGDPT2018Plan ? '1. Năng lực đặc thù' : '1. Năng lực đặc thù:');
         trimmed = trimmed.replace(/^([#\s\*]*\d+\.\s*Năng lực đặc thù)(?:\s+môn(?:\s+[a-zA-ZÀ-ỹ\s]+)?)?:?/i, isGDPT2018Plan ? '$1' : '$1:');
 
+        // Special formatting for Section II bullet points: "- Giáo viên:" and "- Học sinh:"
+        // Enforce 100% straight, perfectly aligned gạch đầu dòng with identical hanging indent
+        const gvToolMatch = trimmed.match(/^(?:[#\s\-\*\+•\d\.\)]|\*\*-)*\s*(?:\*\*)?(-?\s*(?:Giáo viên|Đối với giáo viên))(?:\*\*)?\s*:\s*(.*)$/i);
+        if (gvToolMatch) {
+          const body = gvToolMatch[2].trim()
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>');
+          html += `<p style="font-size: ${isGDPT2018Plan ? '14pt' : '12.5pt'}; margin-left: 28px; text-indent: -14px; text-align: justify; margin-bottom: 4px; line-height: 1.25; mso-line-height-rule: exactly; font-family: 'Times New Roman', Times, serif;">- <strong>Giáo viên:</strong> ${body}</p>`;
+          return;
+        }
+
+        const hsToolMatch = trimmed.match(/^(?:[#\s\-\*\+•\d\.\)]|\*\*-)*\s*(?:\*\*)?(-?\s*(?:Học sinh|Đối với học sinh))(?:\*\*)?\s*:\s*(.*)$/i);
+        if (hsToolMatch) {
+          const body = hsToolMatch[2].trim()
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>');
+          html += `<p style="font-size: ${isGDPT2018Plan ? '14pt' : '12.5pt'}; margin-left: 28px; text-indent: -14px; text-align: justify; margin-bottom: 4px; line-height: 1.25; mso-line-height-rule: exactly; font-family: 'Times New Roman', Times, serif;">- <strong>Học sinh:</strong> ${body}</p>`;
+          return;
+        }
+
         // Check for AI competency label:
         const aiCompRegex = /^(?:[#\s\-\*\+•]|\*\*-)?\s*(?:\*\*)?(-?\s*(?:Năng lực Trí tuệ nhân tạo \(AI\)(?:\s*\([^\)]*\))?|Năng lực AI(?:\s*\([^\)]*\))?))(?:\*\*)?\s*:\s*(.*)$/i;
         const aiMatch = trimmed.match(aiCompRegex);
         if (aiMatch) {
-          const hasAiSelected = selectedCompetencies.some(c => c.toLowerCase().includes('ai') || c.includes('3439')) || aiPowerup;
-          if (!hasAiSelected) {
-            return;
+          if (!aiAutoCompParam) {
+            const hasAiSelected = selectedCompetencies.some(c => c.toLowerCase().includes('ai') || c.includes('3439')) || aiPowerup;
+            if (!hasAiSelected) {
+              return;
+            }
           }
           let label = aiMatch[1].trim().replace(/^-\s*/, '');
           const body = aiMatch[2].trim()
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             .replace(/\*(.*?)\*/g, '<em>$1</em>');
-          html += `<p style="font-size: ${isGDPT2018Plan ? '14pt' : '12.5pt'}; margin-left: 20px; text-align: justify; margin-bottom: 4px; line-height: 1.25; mso-line-height-rule: exactly;">&nbsp;&nbsp;<strong>- ${label}:</strong> ${body}</p>`;
+          html += `<p style="font-size: ${isGDPT2018Plan ? '14pt' : '12.5pt'}; margin-left: 28px; text-indent: -14px; text-align: justify; margin-bottom: 4px; line-height: 1.25; mso-line-height-rule: exactly; font-family: 'Times New Roman', Times, serif;">- <strong>${label}:</strong> ${body}</p>`;
           return;
         }
 
@@ -2760,7 +2858,7 @@ export default function LessonPlanner() {
           const body = compMatch[2].trim()
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             .replace(/\*(.*?)\*/g, '<em>$1</em>');
-          html += `<p style="font-size: ${isGDPT2018Plan ? '14pt' : '12.5pt'}; margin-left: 20px; text-align: justify; margin-bottom: 4px; line-height: 1.25; mso-line-height-rule: exactly;">&nbsp;&nbsp;<strong>- ${label}:</strong> ${body}</p>`;
+          html += `<p style="font-size: ${isGDPT2018Plan ? '14pt' : '12.5pt'}; margin-left: 28px; text-indent: -14px; text-align: justify; margin-bottom: 4px; line-height: 1.25; mso-line-height-rule: exactly; font-family: 'Times New Roman', Times, serif;">- <strong>${label}:</strong> ${body}</p>`;
           return;
         }
 
@@ -2796,12 +2894,12 @@ export default function LessonPlanner() {
           const formatted = cleanBullet
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             .replace(/\*(.*?)\*/g, '<em>$1</em>');
-          html += `<p style="font-size: ${isGDPT2018Plan ? '14pt' : '12.5pt'}; margin-left: 20px; text-align: justify; margin-bottom: 4px; line-height: 1.25; mso-line-height-rule: exactly;">&nbsp;&nbsp;${bulletChar} ${formatted}</p>`;
+          html += `<p style="font-size: ${isGDPT2018Plan ? '14pt' : '12.5pt'}; margin-left: 28px; text-indent: -14px; text-align: justify; margin-bottom: 4px; line-height: 1.25; mso-line-height-rule: exactly; font-family: 'Times New Roman', Times, serif;">- ${formatted}</p>`;
         } else {
           const formatted = trimmed
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             .replace(/\*(.*?)\*/g, '<em>$1</em>');
-          html += `<p style="font-size: ${isGDPT2018Plan ? '14pt' : '12.5pt'}; text-align: justify; margin-bottom: 4px; line-height: 1.25; mso-line-height-rule: exactly;">${formatted}</p>`;
+          html += `<p style="font-size: ${isGDPT2018Plan ? '14pt' : '12.5pt'}; text-align: justify; margin-bottom: 4px; line-height: 1.25; mso-line-height-rule: exactly; font-family: 'Times New Roman', Times, serif;">${formatted}</p>`;
         }
       });
       return html;
@@ -2976,7 +3074,7 @@ export default function LessonPlanner() {
         const activeQualities = (qualitiesParam && qualitiesParam.length > 0) ? qualitiesParam : ['Chăm chỉ', 'Trách nhiệm', 'Trung thực'];
         activeQualities.forEach(q => {
           const desc = qualityFallbackDescs[q] || `Nêu cao tinh thần ${q.toLowerCase()} trong Tiết ${periodNum}.`;
-          h += `<p style="font-size: ${isGDPT2018Plan ? '14pt' : '12.5pt'}; margin-left: 20px; text-align: justify; margin-bottom: 4px; line-height: 1.25; mso-line-height-rule: exactly;">&nbsp;&nbsp;- <strong>${q}:</strong> ${desc}</p>`;
+          h += `<p style="font-size: ${isGDPT2018Plan ? '14pt' : '12.5pt'}; margin-left: 28px; text-indent: -14px; text-align: justify; margin-bottom: 4px; line-height: 1.25; mso-line-height-rule: exactly; font-family: 'Times New Roman', Times, serif;">- <strong>${q}:</strong> ${desc}</p>`;
         });
       }
 
@@ -2990,8 +3088,8 @@ export default function LessonPlanner() {
       } else {
         const teacherToolsFinal = formatTeacherToolsString("", toolsParam, cleanSubjectDisplay, cleanGradeStr, aiAutoToolsParam);
         h += `<p style="font-size: ${isGDPT2018Plan ? '14pt' : '12.5pt'}; font-weight: bold; margin-top: 15px; margin-bottom: 6px; line-height: 1.25; mso-line-height-rule: exactly; ${isGDPT2018Plan ? 'color: #c00000;' : ''}"><strong style="${isGDPT2018Plan ? 'color: #c00000;' : ''}">${isGDPT2018Plan ? 'II. ĐỒ DÙNG DẠY HỌC' : 'II. ĐỒ DÙNG DẠY HỌC:'}</strong></p>`;
-        h += `<p style="font-size: ${isGDPT2018Plan ? '14pt' : '12.5pt'}; margin-left: 20px; text-align: justify; margin-bottom: 4px; line-height: 1.25; mso-line-height-rule: exactly;">&nbsp;&nbsp;<strong>- Giáo viên:</strong> ${teacherToolsFinal}.</p>`;
-        h += `<p style="font-size: ${isGDPT2018Plan ? '14pt' : '12.5pt'}; margin-left: 20px; text-align: justify; margin-bottom: 4px; line-height: 1.25; mso-line-height-rule: exactly;">&nbsp;&nbsp;<strong>- Học sinh:</strong> SGK ${cleanSubjectDisplay} ${cleanGradeStr}, VBT ${cleanSubjectDisplay} ${cleanGradeStr}, vở ghi, dụng cụ học tập.</p>`;
+        h += `<p style="font-size: ${isGDPT2018Plan ? '14pt' : '12.5pt'}; margin-left: 28px; text-indent: -14px; text-align: justify; margin-bottom: 4px; line-height: 1.25; mso-line-height-rule: exactly; font-family: 'Times New Roman', Times, serif;">- <strong>Giáo viên:</strong> ${teacherToolsFinal}.</p>`;
+        h += `<p style="font-size: ${isGDPT2018Plan ? '14pt' : '12.5pt'}; margin-left: 28px; text-indent: -14px; text-align: justify; margin-bottom: 4px; line-height: 1.25; mso-line-height-rule: exactly; font-family: 'Times New Roman', Times, serif;">- <strong>Học sinh:</strong> SGK ${cleanSubjectDisplay} ${cleanGradeStr}, VBT ${cleanSubjectDisplay} ${cleanGradeStr}, vở ghi, dụng cụ học tập.</p>`;
       }
 
       // Mục III. CÁC HOẠT ĐỘNG DẠY HỌC CHỦ YẾU
@@ -4803,21 +4901,36 @@ export default function LessonPlanner() {
     // 2. Remove book series names in parentheses anywhere in Section II
     finalHtml = finalHtml.replace(/(\s*\(bộ sách\s*(?:Kết nối tri thức|Chân trời sáng tạo|Cánh diều)[^)]*\)|\s*\((?:Kết nối tri thức với cuộc sống|Kết nối tri thức|Chân trời sáng tạo|Cánh diều)\))/gi, '');
 
-    // 3. Guarantee that 100% of selected tools in toolsParam appear in every "- Giáo viên:" paragraph
-    finalHtml = finalHtml.replace(/(<p[^>]*>\s*(?:&nbsp;)*\s*(?:<strong[^>]*>)?\s*-\s*Giáo\s*viên:\s*(?:<\/strong>)?)([\s\S]*?)(<\/p>)/gi, 
-      (_m, _prefix, content, _suffix) => {
-        const formatted = formatTeacherToolsString(content, toolsParam, cleanSubjectDisplay, cleanGradeStr);
-        return `<p style="font-size: ${isGDPT2018Plan ? '14pt' : '12.5pt'}; margin-left: 20px; text-align: justify; margin-bottom: 4px; line-height: 1.25; mso-line-height-rule: exactly;">&nbsp;&nbsp;<strong>- Giáo viên:</strong> ${formatted}.</p>`;
+    // 3. Guarantee that 100% of selected tools in toolsParam appear in every "- Giáo viên:" paragraph when in manual mode, or preserve AI tools when in AI auto mode
+    finalHtml = finalHtml.replace(/<p[^>]*>\s*(?:&nbsp;)*\s*(?:-\s*<strong[^>]*>|<strong[^>]*>\s*-\s*|-\s*)Giáo\s*viên:\s*(?:<\/strong>)?([\s\S]*?)<\/p>/gi, 
+      (_m, content) => {
+        const cleanContent = content.replace(/<\/?[^>]+(>|$)/g, "").trim().replace(/\.+$/, "");
+        const formatted = formatTeacherToolsString(cleanContent, toolsParam, cleanSubjectDisplay, cleanGradeStr, aiAutoToolsParam);
+        return `<p style="font-size: ${isGDPT2018Plan ? '14pt' : '12.5pt'}; margin-left: 28px; text-indent: -14px; text-align: justify; margin-bottom: 4px; line-height: 1.25; mso-line-height-rule: exactly; font-family: 'Times New Roman', Times, serif;">- <strong>Giáo viên:</strong> ${formatted}.</p>`;
       }
     );
 
-    // 4. Fixed Student materials line:
-    finalHtml = finalHtml.replace(/<p([^>]*)>\s*(?:&nbsp;)*\s*(?:<strong[^>]*>)?\s*-\s*Học\s*sinh:[^<]+(?:<\/strong>)?<\/p>/gi, 
-      `<p style="font-size: ${isGDPT2018Plan ? '14pt' : '12.5pt'}; margin-left: 20px; text-align: justify; margin-bottom: 4px; line-height: 1.25; mso-line-height-rule: exactly;">&nbsp;&nbsp;<strong>- Học sinh:</strong> SGK ${cleanSubjectDisplay} ${cleanGradeStr}, VBT ${cleanSubjectDisplay} ${cleanGradeStr}, vở ghi, dụng cụ học tập.</p>`
+    // 4. Fixed Student materials line with identical margin and indent:
+    finalHtml = finalHtml.replace(/<p[^>]*>\s*(?:&nbsp;)*\s*(?:-\s*<strong[^>]*>|<strong[^>]*>\s*-\s*|-\s*)Học\s*sinh:\s*(?:<\/strong>)?[\s\S]*?<\/p>/gi, 
+      `<p style="font-size: ${isGDPT2018Plan ? '14pt' : '12.5pt'}; margin-left: 28px; text-indent: -14px; text-align: justify; margin-bottom: 4px; line-height: 1.25; mso-line-height-rule: exactly; font-family: 'Times New Roman', Times, serif;">- <strong>Học sinh:</strong> SGK ${cleanSubjectDisplay} ${cleanGradeStr}, VBT ${cleanSubjectDisplay} ${cleanGradeStr}, vở ghi, dụng cụ học tập.</p>`
     );
 
     finalHtml = boldLessonTitleInLeadIn(finalHtml);
     finalHtml = fixLessonTitlePeriodSpacing(finalHtml);
+
+    // Universal cleanup of duplicated double quotes and connector phrases in finalHtml (e.g. ""Hộp quà bí mật"" -> "Hộp quà bí mật", ""Kahoot"" -> "Kahoot", "Ai nhanh hơn""kết hợp phần mềm""Wordwall" -> "Ai nhanh hơn" kết hợp phần mềm "Wordwall")
+    finalHtml = finalHtml.replace(/["“”«»]{1,2}\s*(kết\s*hợp\s*phần\s*mềm|kết\s*hợp\s*ứng\s*dụng|kết\s*hợp|trên\s*phần\s*mềm|trên\s*ứng\s*dụng|trên|thông\s*qua\s*phần\s*mềm|thông\s*qua\s*ứng\s*dụng|thông\s*qua|sử\s*dụng\s*phần\s*mềm|sử\s*dụng|với\s*phần\s*mềm|với|cùng\s*phần\s*mềm|cùng|bằng\s*phần\s*mềm|bằng)\s*["“”«»]{1,2}/gi, ' $1 ');
+    finalHtml = finalHtml.replace(/(["“”«»])(kết\s*hợp|trên|thông\s*qua|sử\s*dụng|với|cùng|bằng|để|và)\b/gi, '$1 $2');
+    finalHtml = finalHtml.replace(/\b(phần\s*mềm|trò\s*chơi|ứng\s*dụng|website|trang\s*web)(["“”«»])/gi, '$1 $2');
+    finalHtml = finalHtml.replace(/(["“”«»])\s*(["“”«»])/g, '$1 $2');
+    finalHtml = finalHtml.replace(/["“”«»]{2,}/g, '"');
+    finalHtml = finalHtml.replace(/(?:&quot;){2,}/gi, '&quot;');
+    finalHtml = finalHtml.replace(/<strong>\s*["“”«»]{2,}/gi, '<strong>"');
+    finalHtml = finalHtml.replace(/["“”«»]{2,}\s*<\/strong>/gi, '"</strong>');
+    finalHtml = finalHtml.replace(/["“”«»]+\s*(<strong>\s*["“”«»]?[^<]+?["“”«»]?\s*<\/strong>)\s*["“”«»]+/gi, '$1');
+    finalHtml = finalHtml.replace(/""([^"\n\r]+)""/g, '"$1"');
+    finalHtml = finalHtml.replace(/““([^”\n\r]+)””/g, '"$1"');
+    finalHtml = finalHtml.replace(/””([^”\n\r]+)””/g, '"$1"');
 
     return finalHtml;
   };
@@ -5652,10 +5765,8 @@ export default function LessonPlanner() {
             <div className="bg-slate-50 p-4 sm:p-5 rounded-[24px] border border-slate-150 shadow-inner">
               <div 
                 ref={editorRef}
-                contentEditable={true}
-                suppressContentEditableWarning={true}
-                onInput={handleEditorInput}
-                className="bg-white border border-slate-200 p-8 md:p-12 rounded-[16px] shadow-sm text-slate-950 select-text outline-none focus:outline-none min-h-[600px] text-left" 
+                contentEditable={false}
+                className="bg-white border border-slate-200 p-8 md:p-12 rounded-[16px] shadow-sm text-slate-950 select-text outline-none min-h-[600px] text-left cursor-default" 
                 style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: (plannerTab === 'gdpt2018' || currentPlanIsGDPT2018) ? '14pt' : '13pt', lineHeight: '1.45' }}
                 dangerouslySetInnerHTML={{ __html: visualHtmlContent }}
               />
@@ -6142,119 +6253,110 @@ export default function LessonPlanner() {
               </div>
             </div>
 
-            {/* Content: AI Auto vs Category Selection */}
-            {aiAutoCompetency ? (
-              <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-xl text-xs text-blue-950 flex items-start gap-2.5">
-                <Sparkles className="w-4 h-4 text-[#2454A6] shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <p className="font-bold text-[#2454A6]">Công cụ AI Flash 3 preview tự động phân tích & đề xuất:</p>
-                  <p className="text-[11.5px] text-blue-800 leading-relaxed">
-                    Dựa vào <strong className="text-blue-950 font-bold">"Tài liệu đính kèm minh họa"</strong> hoặc <strong className="text-blue-950 font-bold">"Tra cứu trang taphuan.nxbgd.vn"</strong> (ưu tiên <strong className="text-blue-950 font-bold">"Tài liệu đính kèm minh họa"</strong> nếu có) để đưa ra các năng lực cần phát triển phù hợp nhất với giáo án của bài học đó.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3.5 pt-1">
-                {/* 1. Năng lực đặc thù */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-600 inline-block"></span>
-                      1. Năng lực đặc thù
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-semibold">(Tự động theo môn hoặc tùy chọn)</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {SPECIFIC_COMPETENCIES_LIST.map((comp) => {
-                      const isSelected = selectedCompetencies.includes(comp);
-                      return (
-                        <button
-                          key={comp}
-                          type="button"
-                          onClick={() => toggleCompetency(comp)}
-                          className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all border flex items-center gap-1 cursor-pointer ${
-                            isSelected 
-                              ? 'bg-blue-50 text-[#2454A6] border-blue-300 shadow-xs' 
-                              : 'bg-white text-gray-500 border-gray-200 hover:border-blue-200'
-                          }`}
-                        >
-                          {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                          {comp}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+            {/* Content: AI Auto Banner (Hidden per user request) */}
 
-                {/* 2. Năng lực chung */}
-                <div className="space-y-1.5">
+            {/* Manual Competency Options */}
+            <div className={`space-y-3.5 pt-1 ${aiAutoCompetency ? 'opacity-90 border-t border-blue-100 pt-3' : ''}`}>
+
+              {/* 1. Năng lực đặc thù */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
                   <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 inline-block"></span>
-                    2. Năng lực chung
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-600 inline-block"></span>
+                    1. Năng lực đặc thù
                   </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {GENERAL_COMPETENCIES_LIST.map((comp) => {
-                      const isSelected = selectedCompetencies.includes(comp);
-                      return (
-                        <button
-                          key={comp}
-                          type="button"
-                          onClick={() => toggleCompetency(comp)}
-                          className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all border flex items-center gap-1 cursor-pointer ${
-                            isSelected 
-                              ? 'bg-indigo-50 text-indigo-700 border-indigo-300 shadow-xs' 
-                              : 'bg-white text-gray-500 border-gray-200 hover:border-indigo-200'
-                          }`}
-                        >
-                          {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                          {comp}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <span className="text-[10px] text-slate-400 font-semibold">{aiAutoCompetency ? '(Thông tin trên giao diện)' : '(Tự động theo môn hoặc tùy chọn)'}</span>
                 </div>
-
-                {/* 3. Phẩm chất */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
-                      3. Phẩm chất
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-semibold">(Ưu tiên theo tài liệu đính kèm hoặc taphuan.nxbgd.vn)</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {QUALITIES_LIST.map((qual) => {
-                      const isSelected = selectedQualities.includes(qual);
-                      return (
-                        <button
-                          key={qual}
-                          type="button"
-                          onClick={() => toggleQuality(qual)}
-                          className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all border flex items-center gap-1 cursor-pointer ${
-                            isSelected 
-                              ? 'bg-amber-50 text-amber-800 border-amber-300 shadow-xs' 
-                              : 'bg-white text-gray-500 border-gray-200 hover:border-amber-200'
-                          }`}
-                        >
-                          {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                          {qual}
-                        </button>
-                      );
-                    })}
-                  </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {SPECIFIC_COMPETENCIES_LIST.map((comp) => {
+                    const isSelected = selectedCompetencies.includes(comp);
+                    return (
+                      <button
+                        key={comp}
+                        type="button"
+                        onClick={() => toggleCompetency(comp)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all border flex items-center gap-1 cursor-pointer ${
+                          isSelected 
+                            ? 'bg-blue-50 text-[#2454A6] border-blue-300 shadow-xs' 
+                            : 'bg-white text-gray-500 border-gray-200 hover:border-blue-200'
+                        }`}
+                      >
+                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                        {comp}
+                      </button>
+                    );
+                  })}
                 </div>
-
-                {/* Sub text input */}
-                <input
-                  type="text"
-                  value={customCompetency}
-                  onChange={(e) => setCustomCompetency(e.target.value)}
-                  placeholder="Nhập thêm năng lực/phẩm chất cụ thể khác (ngăn cách bằng dấu phẩy)..."
-                  className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-[#2454A6]"
-                />
               </div>
-            )}
+
+              {/* 2. Năng lực chung */}
+              <div className="space-y-1.5">
+                <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 inline-block"></span>
+                  2. Năng lực chung
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {GENERAL_COMPETENCIES_LIST.map((comp) => {
+                    const isSelected = selectedCompetencies.includes(comp);
+                    return (
+                      <button
+                        key={comp}
+                        type="button"
+                        onClick={() => toggleCompetency(comp)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all border flex items-center gap-1 cursor-pointer ${
+                          isSelected 
+                            ? 'bg-indigo-50 text-indigo-700 border-indigo-300 shadow-xs' 
+                            : 'bg-white text-gray-500 border-gray-200 hover:border-indigo-200'
+                        }`}
+                      >
+                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                        {comp}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 3. Phẩm chất */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
+                    3. Phẩm chất
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-semibold">{aiAutoCompetency ? '(Thông tin trên giao diện)' : '(Ưu tiên theo tài liệu đính kèm hoặc taphuan.nxbgd.vn)'}</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {QUALITIES_LIST.map((qual) => {
+                    const isSelected = selectedQualities.includes(qual);
+                    return (
+                      <button
+                        key={qual}
+                        type="button"
+                        onClick={() => toggleQuality(qual)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all border flex items-center gap-1 cursor-pointer ${
+                          isSelected 
+                            ? 'bg-amber-50 text-amber-800 border-amber-300 shadow-xs' 
+                            : 'bg-white text-gray-500 border-gray-200 hover:border-amber-200'
+                        }`}
+                      >
+                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                        {qual}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Sub text input */}
+              <input
+                type="text"
+                value={customCompetency}
+                onChange={(e) => setCustomCompetency(e.target.value)}
+                placeholder="Nhập thêm năng lực/phẩm chất cụ thể khác (ngăn cách bằng dấu phẩy)..."
+                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-[#2454A6]"
+              />
+            </div>
           </div>
 
           {/* Đồ dùng dạy học framework selection */}
@@ -6286,50 +6388,40 @@ export default function LessonPlanner() {
               </div>
             </div>
 
-            {aiAutoTools ? (
-              <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-xl text-xs text-emerald-950 flex items-start gap-2.5">
-                <Sparkles className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <p className="font-bold text-emerald-700">Công cụ AI Flash 3 preview tự động đưa ra các Đồ dùng dạy học phù hợp:</p>
-                  <p className="text-[11.5px] text-emerald-800 leading-relaxed">
-                    Dựa vào <strong className="text-emerald-950 font-bold">"Tài liệu đính kèm minh họa"</strong> hoặc <strong className="text-emerald-950 font-bold">"Tra cứu trang taphuan.nxbgd.vn"</strong> (ưu tiên <strong className="text-emerald-950 font-bold">"Tài liệu đính kèm minh họa"</strong> nếu có) để đưa ra các Đồ dùng dạy học (chỉ thay đổi với mục giáo viên) phù hợp nhất với giáo án của bài học đó.<br/>
-                    • <strong>Đối với Giáo viên:</strong> Đề xuất đồ dùng phù hợp nhất (Máy chiếu, Bài giảng điện tử, Máy tính, Tranh ảnh SGK Trang * với số trang và hình cụ thể nếu có...).<br/>
-                    • <strong>Đối với Học sinh:</strong> SGK {selectedSubject} {selectedGrade.replace(/lớp\s*/i, '').trim() || '3'}, VBT {selectedSubject} {selectedGrade.replace(/lớp\s*/i, '').trim() || '3'}, vở ghi, dụng cụ học tập.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {availableTools.map((tool) => {
-                    const isSelected = selectedTools.includes(tool);
-                    return (
-                      <button
-                        key={tool}
-                        type="button"
-                        onClick={() => toggleTool(tool)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-black transition-all border flex items-center gap-1 cursor-pointer ${
-                          isSelected 
-                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300 scale-102' 
-                            : 'bg-white text-gray-500 border-gray-200 hover:border-emerald-250'
-                        }`}
-                      >
-                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                        {tool}
-                      </button>
-                    );
-                  })}
-                </div>
+            {/* AI Auto Tools Banner (Hidden per user request) */}
 
-                <input
-                  type="text"
-                  value={customTools}
-                  onChange={(e) => setCustomTools(e.target.value)}
-                  placeholder="Nhập thêm thiết bị giáo cụ phát sinh khác..."
-                  className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
-                />
-              </>
-            )}
+            {/* Manual Tools List */}
+            <div className={`space-y-3 ${aiAutoTools ? 'opacity-90 border-t border-emerald-150 pt-3' : 'pt-1'}`}>
+
+              <div className="flex flex-wrap gap-2">
+                {availableTools.map((tool) => {
+                  const isSelected = selectedTools.includes(tool);
+                  return (
+                    <button
+                      key={tool}
+                      type="button"
+                      onClick={() => toggleTool(tool)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-black transition-all border flex items-center gap-1 cursor-pointer ${
+                        isSelected 
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300 scale-102' 
+                          : 'bg-white text-gray-500 border-gray-200 hover:border-emerald-250'
+                      }`}
+                    >
+                      {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                      {tool}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <input
+                type="text"
+                value={customTools}
+                onChange={(e) => setCustomTools(e.target.value)}
+                placeholder="Nhập thêm thiết bị giáo cụ phát sinh khác..."
+                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
+              />
+            </div>
           </div>
 
           {/* 2 Side-by-Side Cards: Tech Tools & Educational Games */}
@@ -6975,10 +7067,8 @@ export default function LessonPlanner() {
                       <div className="flex-1 p-5 md:p-6 overflow-y-auto text-left scrollbar-thin bg-slate-100">
                         <div 
                           ref={editorRef}
-                          contentEditable={true}
-                          suppressContentEditableWarning={true}
-                          onInput={handleEditorInput}
-                          className="bg-white border border-slate-200 p-8 md:p-12 rounded-[24px] shadow-sm text-slate-950 select-text outline-none focus:outline-none min-h-[600px]" 
+                          contentEditable={false}
+                          className="bg-white border border-slate-200 p-8 md:p-12 rounded-[24px] shadow-sm text-slate-950 select-text outline-none min-h-[600px] cursor-default" 
                           style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: (plannerTab === 'gdpt2018' || currentPlanIsGDPT2018) ? '14pt' : '13pt', lineHeight: '1.45' }}
                           dangerouslySetInnerHTML={{ __html: visualHtmlContent }}
                         />

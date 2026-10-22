@@ -4439,6 +4439,12 @@ export default function AdminPanel({
   const [examFormRewardEnabled, setExamFormRewardEnabled] = useState<boolean>(false);
   const [examFormRewardMinScore, setExamFormRewardMinScore] = useState<number>(8.0);
   const [examFormRewardGameLink, setExamFormRewardGameLink] = useState<string>('');
+  const [examFormRewardImageUrl, setExamFormRewardImageUrl] = useState<string>('');
+
+  // Hotspot drag-and-drop bounding box creation states
+  const [drawingBoxIndex, setDrawingBoxIndex] = useState<number | null>(null);
+  const [dragStartPoint, setDragStartPoint] = useState<{ x: number; y: number } | null>(null);
+  const [currentDragBox, setCurrentDragBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [aiMcCount, setAiMcCount] = useState<number>(4);
   const [aiTfCount, setAiTfCount] = useState<number>(1);
   const [aiMatchingCount, setAiMatchingCount] = useState<number>(1);
@@ -12233,8 +12239,8 @@ export default function AdminPanel({
                             type: 'hotspot_image',
                             questionText: 'Em hãy quan sát hình máy tính dưới đây và Click chọn vào đúng vị trí của BÀN PHÍM máy tính:',
                             imageUrl: 'https://images.unsplash.com/photo-1547082299-de196ea013d6?w=600&auto=format&fit=crop&q=60',
-                            correctAnswer: '48,72',
-                            hotspotRadius: 12,
+                            hotspotBox: { x: 28, y: 64, width: 44, height: 26 },
+                            correctAnswer: '28,64,44,26',
                             points: examFormPointsPerQuestion || 0.5,
                             answerGuide: 'Vị trí bàn phím nằm ở nửa dưới bức ảnh.'
                           };
@@ -13237,17 +13243,38 @@ export default function AdminPanel({
                             {q.type === 'hotspot_image' && (
                               <div className="space-y-3 pb-2 col-span-1 border rounded-2xl p-4 bg-slate-50/50">
                                 <div className="space-y-2">
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-[10px] font-black text-slate-500 uppercase">Hình ảnh nền (Click lên hình bên dưới để định vị điểm mục tiêu đúng):</span>
-                                    <span className="text-[10px] font-mono text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded font-bold">
-                                      Điểm chuẩn: X={q.correctAnswer?.split(',')[0]}%, Y={q.correctAnswer?.split(',')[1]}%
-                                    </span>
-                                  </div>
+                                  {(() => {
+                                    let activeBox = q.hotspotBox;
+                                    if (!activeBox && q.correctAnswer) {
+                                      const parts = q.correctAnswer.split(',').map((p: string) => parseFloat(p.trim()));
+                                      if (parts.length >= 4) {
+                                        activeBox = { x: parts[0], y: parts[1], width: parts[2], height: parts[3] };
+                                      } else if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                                        activeBox = { x: Math.max(0, parts[0] - 8), y: Math.max(0, parts[1] - 8), width: 16, height: 16 };
+                                      }
+                                    }
+                                    return (
+                                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                                        <span className="text-[10px] font-black text-slate-700 uppercase flex items-center gap-1.5">
+                                          <span>🎯</span> Khoanh vùng ảnh đúng (Kéo thả tạo ô vuông):
+                                        </span>
+                                        <span className="text-[10px] font-mono text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded font-extrabold shadow-3xs">
+                                          {activeBox 
+                                            ? `Vùng đúng: X=${activeBox.x}%, Y=${activeBox.y}%, Rộng=${activeBox.width}%, Cao=${activeBox.height}%`
+                                            : 'Chưa khoanh vùng'}
+                                        </span>
+                                      </div>
+                                    );
+                                  })()}
+
+                                  <p className="text-[10.5px] text-blue-700 font-semibold bg-blue-50/70 p-2 rounded-xl border border-blue-200 leading-relaxed">
+                                    💡 <strong>Cách làm:</strong> Nhấn giữ chuột và kéo thả trên bức ảnh bên dưới để tạo ô vuông/chữ nhật bao quanh vùng đáp án đúng. Khi học sinh làm bài thi, chỉ cần chọn điểm bất kỳ nằm trong ô này là đạt điểm!
+                                  </p>
                                   
                                   <div className="flex items-center gap-2">
                                     <input
                                       type="file"
-                                      accept=".png,.jpeg,.jpg,.bmp"
+                                      accept=".png,.jpeg,.jpg,.bmp,.webp"
                                       onChange={(e) => {
                                         const file = e.target.files?.[0];
                                         if (file) {
@@ -13256,7 +13283,7 @@ export default function AdminPanel({
                                             const updated = [...examFormTheory];
                                             updated[qIndex] = { ...updated[qIndex], imageUrl: reader.result as string };
                                             setExamFormTheory(updated);
-                                            triggerToast("✓ Tải ảnh bản đồ/hình ảnh thành công!");
+                                            triggerToast("✓ Tải ảnh minh họa câu hỏi thành công!");
                                           };
                                           reader.readAsDataURL(file);
                                         }
@@ -13277,57 +13304,131 @@ export default function AdminPanel({
                                   </div>
 
                                   {q.imageUrl ? (
-                                    <div className="relative border rounded-xl overflow-hidden bg-white flex justify-center max-h-64 cursor-crosshair">
-                                      <img
-                                        src={q.imageUrl}
-                                        alt="Hotspot target"
-                                        onClick={(e) => {
-                                          const rect = e.currentTarget.getBoundingClientRect();
-                                          const x = Math.round(((e.clientX - rect.left) / rect.width) * 100);
-                                          const y = Math.round(((e.clientY - rect.top) / rect.height) * 100);
-                                          const updated = [...examFormTheory];
-                                          updated[qIndex] = { ...updated[qIndex], correctAnswer: `${x},${y}` };
-                                          setExamFormTheory(updated);
-                                          triggerToast(`✓ Định vị điểm đúng tại: X=${x}%, Y=${y}%`);
-                                        }}
-                                        className="max-h-60 object-contain"
-                                        referrerPolicy="no-referrer"
-                                      />
-                                      {(() => {
-                                        const [xPct, yPct] = (q.correctAnswer || '50,50').split(',').map(Number);
-                                        if (isNaN(xPct) || isNaN(yPct)) return null;
-                                        return (
-                                          <div
-                                            className="absolute w-5 h-5 bg-emerald-500/80 border-2 border-white rounded-full flex items-center justify-center -translate-x-1/2 -translate-y-1/2 pointer-events-none shadow"
-                                            style={{ left: `${xPct}%`, top: `${yPct}%` }}
-                                          >
-                                            <div className="w-1.5 h-1.5 bg-white rounded-full" />
-                                          </div>
-                                        );
-                                      })()}
+                                    <div 
+                                      className="relative border-2 border-indigo-200 rounded-xl overflow-hidden bg-slate-900/5 flex justify-center max-h-72 cursor-crosshair select-none p-1"
+                                      onMouseDown={(e) => {
+                                        const imgEl = e.currentTarget.querySelector('img');
+                                        if (!imgEl) return;
+                                        const rect = imgEl.getBoundingClientRect();
+                                        const rawX = ((e.clientX - rect.left) / rect.width) * 100;
+                                        const rawY = ((e.clientY - rect.top) / rect.height) * 100;
+                                        const startX = Math.round(Math.max(0, Math.min(100, rawX)));
+                                        const startY = Math.round(Math.max(0, Math.min(100, rawY)));
+                                        setDrawingBoxIndex(qIndex);
+                                        setDragStartPoint({ x: startX, y: startY });
+                                        setCurrentDragBox({ x: startX, y: startY, width: 0, height: 0 });
+                                      }}
+                                      onMouseMove={(e) => {
+                                        if (drawingBoxIndex !== qIndex || !dragStartPoint) return;
+                                        const imgEl = e.currentTarget.querySelector('img');
+                                        if (!imgEl) return;
+                                        const rect = imgEl.getBoundingClientRect();
+                                        const rawX = ((e.clientX - rect.left) / rect.width) * 100;
+                                        const rawY = ((e.clientY - rect.top) / rect.height) * 100;
+                                        const curX = Math.round(Math.max(0, Math.min(100, rawX)));
+                                        const curY = Math.round(Math.max(0, Math.min(100, rawY)));
+                                        const boxX = Math.min(dragStartPoint.x, curX);
+                                        const boxY = Math.min(dragStartPoint.y, curY);
+                                        const boxW = Math.abs(curX - dragStartPoint.x);
+                                        const boxH = Math.abs(curY - dragStartPoint.y);
+                                        setCurrentDragBox({ x: boxX, y: boxY, width: boxW, height: boxH });
+                                      }}
+                                      onMouseUp={(e) => {
+                                        if (drawingBoxIndex !== qIndex || !dragStartPoint) return;
+                                        const imgEl = e.currentTarget.querySelector('img');
+                                        if (!imgEl) return;
+                                        const rect = imgEl.getBoundingClientRect();
+                                        const rawX = ((e.clientX - rect.left) / rect.width) * 100;
+                                        const rawY = ((e.clientY - rect.top) / rect.height) * 100;
+                                        const curX = Math.round(Math.max(0, Math.min(100, rawX)));
+                                        const curY = Math.round(Math.max(0, Math.min(100, rawY)));
+                                        let boxX = Math.min(dragStartPoint.x, curX);
+                                        let boxY = Math.min(dragStartPoint.y, curY);
+                                        let boxW = Math.abs(curX - dragStartPoint.x);
+                                        let boxH = Math.abs(curY - dragStartPoint.y);
+                                        
+                                        // If clicked without dragging, provide a helpful default 16%x16% bounding box
+                                        if (boxW < 3 && boxH < 3) {
+                                          boxW = 16;
+                                          boxH = 16;
+                                          boxX = Math.max(0, Math.min(84, boxX - 8));
+                                          boxY = Math.max(0, Math.min(84, boxY - 8));
+                                        }
+
+                                        const finalBox = { x: boxX, y: boxY, width: boxW, height: boxH };
+                                        const updated = [...examFormTheory];
+                                        updated[qIndex] = {
+                                          ...updated[qIndex],
+                                          hotspotBox: finalBox,
+                                          correctAnswer: `${boxX},${boxY},${boxW},${boxH}`,
+                                          answerGuide: updated[qIndex].answerGuide || "Đáp án đúng. Vị trí bàn phím nằm ở nửa dưới bức ảnh."
+                                        };
+                                        setExamFormTheory(updated);
+                                        setDrawingBoxIndex(null);
+                                        setDragStartPoint(null);
+                                        setCurrentDragBox(null);
+                                        triggerToast(`✓ Đã khoanh vùng đáp án đúng: X=${boxX}%, Y=${boxY}%, Rộng=${boxW}%, Cao=${boxH}%`);
+                                        playTing();
+                                      }}
+                                    >
+                                      <div className="relative inline-block">
+                                        <img
+                                          src={q.imageUrl}
+                                          alt="Hotspot target"
+                                          draggable={false}
+                                          className="max-h-64 object-contain rounded pointer-events-auto"
+                                          referrerPolicy="no-referrer"
+                                        />
+
+                                        {/* Render drawn / saved bounding box */}
+                                        {(() => {
+                                          const isDrawingThis = drawingBoxIndex === qIndex && currentDragBox && (currentDragBox.width > 0 || currentDragBox.height > 0);
+                                          let renderBox = isDrawingThis ? currentDragBox : q.hotspotBox;
+                                          if (!renderBox && q.correctAnswer) {
+                                            const parts = q.correctAnswer.split(',').map((p: string) => parseFloat(p.trim()));
+                                            if (parts.length >= 4) {
+                                              renderBox = { x: parts[0], y: parts[1], width: parts[2], height: parts[3] };
+                                            } else if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                                              renderBox = { x: Math.max(0, parts[0] - 8), y: Math.max(0, parts[1] - 8), width: 16, height: 16 };
+                                            }
+                                          }
+                                          if (!renderBox) return null;
+                                          return (
+                                            <div
+                                              className={`absolute border-2 rounded flex items-start justify-end p-1 pointer-events-none transition-all ${
+                                                isDrawingThis
+                                                  ? 'border-indigo-500 bg-indigo-500/30'
+                                                  : 'border-emerald-500 bg-emerald-500/25 shadow-lg'
+                                              }`}
+                                              style={{
+                                                left: `${renderBox.x}%`,
+                                                top: `${renderBox.y}%`,
+                                                width: `${renderBox.width}%`,
+                                                height: `${renderBox.height}%`
+                                              }}
+                                            >
+                                              {/* 4 circular corner handles */}
+                                              <div className="absolute -top-1.5 -left-1.5 w-3 h-3 rounded-full bg-white border-2 border-indigo-600 shadow-md z-10" />
+                                              <div className="absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full bg-white border-2 border-indigo-600 shadow-md z-10" />
+                                              <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 rounded-full bg-white border-2 border-indigo-600 shadow-md z-10" />
+                                              <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 rounded-full bg-white border-2 border-indigo-600 shadow-md z-10" />
+
+                                              <span className={`text-[8.5px] font-mono font-bold px-1 py-0.5 rounded shadow-xs leading-none text-white ${
+                                                isDrawingThis ? 'bg-indigo-600' : 'bg-emerald-700'
+                                              }`}>
+                                                ✓ Vùng đúng ({renderBox.width}%×{renderBox.height}%)
+                                              </span>
+                                            </div>
+                                          );
+                                        })()}
+                                      </div>
                                     </div>
                                   ) : (
                                     <div className="py-6 border border-dashed rounded-xl text-center text-xs text-slate-400">
-                                      🖼️ Hãy tải ảnh hoặc dán URL ảnh lên trước để cấu hình điểm chạm đúng.
+                                      🖼️ Hãy tải ảnh hoặc dán URL ảnh lên trước để kéo thả khoanh vùng đáp án đúng.
                                     </div>
                                   )}
-                                  
                                   <div className="flex items-center gap-4 text-xs pt-2">
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="font-bold text-slate-500">Bán kính chấp nhận sai số (%):</span>
-                                      <input
-                                        type="number"
-                                        min="1"
-                                        max="50"
-                                        value={q.hotspotRadius !== undefined ? q.hotspotRadius : 10}
-                                        onChange={(e) => {
-                                          const updated = [...examFormTheory];
-                                          updated[qIndex] = { ...updated[qIndex], hotspotRadius: Number(e.target.value) || 10 };
-                                          setExamFormTheory(updated);
-                                        }}
-                                        className="w-16 p-1 border text-center font-bold bg-white rounded"
-                                      />
-                                    </div>
                                     <div className="flex items-center gap-1.5 ml-auto">
                                       <span className="font-bold text-slate-550">ĐIỂM:</span>
                                       <input
@@ -14052,6 +14153,70 @@ export default function AdminPanel({
                             placeholder="Nhập link trò chơi (Ví dụ: https://kahoot.it/... hoặc link Scratch, Wordwall...)"
                           />
                         </div>
+
+                        {/* 3. Tải ảnh hoặc nhập link ảnh phần thưởng */}
+                        <div className="space-y-1.5 md:col-span-2">
+                          <div className="flex items-center justify-between">
+                            <label className="block text-[10.5px] font-bold text-amber-900 uppercase">
+                              🖼️ Hình ảnh phần thưởng (Tải ảnh lên hoặc nhập Link ảnh)
+                            </label>
+                            {examFormRewardImageUrl && (
+                              <button
+                                type="button"
+                                onClick={() => setExamFormRewardImageUrl('')}
+                                className="text-[10px] text-rose-600 font-bold hover:underline cursor-pointer"
+                              >
+                                ✕ Xóa ảnh
+                              </button>
+                            )}
+                          </div>
+                          
+                          <div className="flex flex-col sm:flex-row items-center gap-2">
+                            <label className="w-full sm:w-auto px-3 py-2 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1.5 shrink-0 border border-amber-300 shadow-3xs">
+                              <span>📁 Tải ảnh lên</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => {
+                                      setExamFormRewardImageUrl(reader.result as string);
+                                      triggerToast("✓ Đã tải ảnh phần thưởng thành công!");
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }
+                                }}
+                              />
+                            </label>
+
+                            <input
+                              type="text"
+                              value={examFormRewardImageUrl}
+                              onChange={(e) => setExamFormRewardImageUrl(e.target.value)}
+                              className="w-full text-xs font-semibold p-2.5 bg-white border border-amber-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800"
+                              placeholder="Hoặc dán URL hình ảnh phần thưởng (https://...)"
+                            />
+                          </div>
+
+                          {examFormRewardImageUrl && (
+                            <div className="mt-2 p-2.5 bg-white rounded-xl border border-amber-200 flex items-center gap-3 shadow-3xs">
+                              <img
+                                src={examFormRewardImageUrl}
+                                alt="Ảnh phần thưởng xem trước"
+                                className="w-16 h-16 object-cover rounded-lg border border-amber-300 shadow-xs"
+                              />
+                              <div className="text-xs text-amber-950 font-bold">
+                                <span>✓ Đã gắn hình ảnh phần thưởng!</span>
+                                <p className="text-[10.5px] text-amber-700 font-normal mt-0.5">
+                                  Khi học sinh làm bài đạt từ {examFormRewardMinScore} điểm trở lên sẽ hiện hình ảnh này kèm liên kết nhận thưởng.
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -14106,6 +14271,7 @@ export default function AdminPanel({
                       rewardEnabled: examFormRewardEnabled,
                       rewardMinScore: examFormRewardMinScore,
                       rewardGameLink: examFormRewardGameLink,
+                      rewardImageUrl: examFormRewardImageUrl,
                       createdAt: editingExamId
                         ? (adminOnlineExams.find(ex => ex.id === editingExamId)?.createdAt || new Date().toISOString())
                         : new Date().toISOString(),
@@ -14212,6 +14378,7 @@ export default function AdminPanel({
                         setExamFormRewardEnabled(false);
                         setExamFormRewardMinScore(8.0);
                         setExamFormRewardGameLink('');
+                        setExamFormRewardImageUrl('');
                         setIsCreatingExam(true);
                         playTing();
                       }}
@@ -14535,6 +14702,7 @@ export default function AdminPanel({
                                       setExamFormRewardEnabled(exam.rewardEnabled === true);
                                       setExamFormRewardMinScore(exam.rewardMinScore !== undefined ? Number(exam.rewardMinScore) : 8.0);
                                       setExamFormRewardGameLink(exam.rewardGameLink || '');
+                                      setExamFormRewardImageUrl(exam.rewardImageUrl || '');
                                       setExamFormPractical(exam.practical || [
                                         { id: 'p-1', questionText: 'Bài thực hành số 1: Nháy đúp chuột khởi động phần mềm soạn thảo MS Word.', imageUrl: '', points: 1.0 },
                                         { id: 'p-2', questionText: 'Bài thực hành số 2: Thực hiện gõ từ câu thơ "Em là dũng sĩ tin học lớp 3" đúng chuẩn Telex.', imageUrl: '', points: 1.0 },
